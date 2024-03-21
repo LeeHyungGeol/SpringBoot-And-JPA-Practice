@@ -160,3 +160,58 @@ public class Delivery {
   - order 에 FK 를 두기로 결정했기 때문에, FK 가 있는 order 가 연관관계의 주인이 되고,
     - ***연관관계의 주인***이 되는 `Order.delivery` 에 `@JoinColumn(name = "delivery_id")` 을 설정한다. 
     - ***연관관계의 거울***이 되는`Delivery.order` 에 `@OneToOne(mappedBy = "delivery")` 를 설정한다.
+
+### Category 계층구조 
+
+![Category 계층구조 entity](https://github.com/LeeHyungGeol/Programmers_CodingTestPractice/assets/56071088/142063e6-941d-401f-a64e-73e1fe9c7329)
+
+![Category 계층구조 table](https://github.com/LeeHyungGeol/Programmers_CodingTestPractice/assets/56071088/491a8079-60d4-4569-b9e8-e1b2b1bb2704)
+
+```java
+@Entity
+@Getter @Setter
+public class Category {
+    @Id @GeneratedValue
+    @Column(name = "category_id")
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "parent_id")
+    private Category parent;
+
+    @OneToMany(mappedBy = "parent")
+    private List<Category> childs = new ArrayList<>();
+}
+```
+
+- Category 구조라는 것은 계층 구조로 쭉 내려가는 것을 말한다.
+- 즉, 부모(parent)로도 조회할 수 있어야 하고, 자기 자신의 자식들도 알고 있어야 한다.
+- 이름만 Category 로 똑같지 다른 엔티티와 다대일 양방향 연관관계를 mapping 하는 것과 똑같이 하면 된다.
+
+### 값 타입은 변경 불가능하게 설계해야 한다.
+
+```java
+@Embeddable
+@Getter
+public class Address {
+  private String city;
+  private String street;
+  private String zipcode;
+
+  protected Address() {
+  }
+
+  public Address(String city, String street, String zipcode) {
+    this.city = city;
+    this.street = street;
+    this.zipcode = zipcode;
+  }
+}
+```
+
+- `@Setter` 를 제거하고, 생성자에서 값을 모두 초기화해서 변경 불가능한 클래스를 만들자. 
+- **JPA 스펙상** 엔티티나 임베디드 타입(`@Embeddable`)은 자바 기본 생성자(default constructor)를 `public` 또는 `protected` 로 설정해야 한다. 
+- `public` 으로 두는 것 보다는 `protected` 로 설정하는 것이 그나마 더 안전하다.
+  - 다른 곳에서 마음대로 호출해서 생성하지 못하도록 하기 위함이다.
+  - 값 타입을 누가 따로 상속할 일도 잘 없다.   
+- JPA가 이런 제약을 두는 이유는 JPA 구현 라이브러리가 객체를 생성할 때 리플랙션(reflection), 프록시(proxy) 같은 기술을 사용할 수 있도 록 지원해야 하기 때문이다.
