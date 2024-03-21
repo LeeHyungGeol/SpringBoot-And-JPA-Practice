@@ -3,6 +3,7 @@ package com.example.jpabook;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.jpabook.domain.Member;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,7 +20,7 @@ class MemberRepositoryTest {
     public void testMember() throws Exception {
         // given
         Member member = new Member();
-        member.setUsername("memberA");
+        member.setName("memberA");
 
         // when
         long savedId = memberRepository.save(member);
@@ -27,7 +28,7 @@ class MemberRepositoryTest {
 
         // then
         assertThat(findMember.getId()).isEqualTo(member.getId());
-        assertThat(findMember.getUsername()).isEqualTo(member.getUsername());
+        assertThat(findMember.getName()).isEqualTo(member.getName());
         assertThat(findMember).isEqualTo(member);
         System.out.println("(findMember == member) = " + (findMember == member));
     }

@@ -68,3 +68,95 @@
 **연관관계의 주인은 단순히 외래 키를 누가 관리하냐의 문제이지 비즈니스상 우위에 있다고 주인으로 정하면 안된다.** 
 - 예를 들어서 team와 member가 있으면, 일대다(1:N) 관계에서 항상 다(N)쪽에 외래 키가 있으므로 외래 키가 있는 member를 연관관계의 주인으로 정하면 된다. 
 - team를 연관관계의 주인으로 정하면 team가 관리하지 않는 **member 테이블의 외래 키 값이 업데이트 되므로 관리와 유지보수가 어렵고, 추가적으로 별도의 업데이트 쿼리가 발생하는 성능 문제도 있다.**
+
+## 엔티티 클래스 개발
+- 예제에서는 설명을 쉽게하기 위해 엔티티 클래스에 Getter, Setter를 모두 열고, 최대한 단순하게 설계 
+- 실무에서는 가급적 Getter는 열어두고, Setter는 꼭 필요한 경우에만 사용하는 것을 추천 
+
+> 참고: 이론적으로 Getter, Setter 모두 제공하지 않고, 꼭 필요한 별도의 메서드를 제공하는게 가장 이상적이다.
+> 하지만 실무에서 엔티티의 데이터는 조회할 일이 너무 많으므로, Getter의 경우 모두 열어두는 것이 편리하다.
+> Getter는 아무리 호출해도 호출 하는 것 만으로 어떤 일이 발생하지는 않는다. 하지만 Setter는 문제가 다르다.
+> Setter를 호출하면 데이터가 변한다. Setter를 막 열어두면 가까운 미래에 엔티티가 도대체 왜 변경되는지 추적 하기 점점 힘들어진다.
+> 그래서 엔티티를 변경할 때는 Setter 대신에 변경 지점이 명확하도록 변경을 위한 비즈니스 메서드를 별도로 제공해야 한다.
+
+- `@JoinColumn(name = "member_id")` 은 mapping 을 무엇으로 할 것이냐인데, FK(Foreign Key)인 것이다. 여기서는 FK 이름이 `"member_id"` 가 되는 것이다.
+
+### *연관관계의 주인이 필요한 이유!!!!!(제일 중요)*
+
+```java
+@Entity
+@Getter @Setter
+public class Member {
+    @Id @GeneratedValue
+    @Column(name = "member_id")
+    private Long id;
+
+    @OneToMany(mappedBy = "member")
+    private List<Order> orders = new ArrayList<>();
+}
+
+@Entity
+@Table(name = "orders")
+@Getter @Setter
+public class Order {
+
+    @Id
+    @GeneratedValue
+    @Column(name = "order_id")
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "member_id")
+    private Member member;
+}
+```
+
+- Member 와 order 의 관계를 변경하고 싶으면, 이때, JPA 는 FK(member_id) 를 변경해야 한다. 
+- 하지만, Member 에 있는 orders 를 변경해야 하는지, order 에 있는 members 를 변경해야 하는지 혼동이 온다.
+- 이 FK 를 update 하는 변경점을 둘 중에 하나로만 하도록 JPA 에서 약속을 했다.
+- **객체는 변경 포인트가 2군데지만, 테이블은 FK 하나만 변경하면 된다.**
+- **둘 중에 하나를 주인이라고 잡고, 하나를 변경했을 때 FK 값을 변경해줄거야 라고 지정한다.** 
+- 그것을 **연관관계의 주인**이라고 한다.
+- 주인은 그대로 두면 되고, 반대편에 있는 Member.orders 를 **연관관계의 거울**이라고 표시하는 **mappedBy**로 `@OneToMany(mappedBy = "member")` 이라고 표시한다.
+  - `mappedBy = "member"` 에서의 member 는 `Order.member` 에서의 member 필드이다.
+
+### OneToOne 일대일 관계에서의 연관관계의 주인 정리
+
+![OneToOne order-delivery](https://github.com/LeeHyungGeol/Programmers_CodingTestPractice/assets/56071088/c0e8b6eb-fc80-48ba-be71-6468eec01ba2)
+
+![OneToOne order-delivery-entity](https://github.com/LeeHyungGeol/Programmers_CodingTestPractice/assets/56071088/621697ef-0085-4c3f-8773-a040e2f2b6ee)
+
+```java
+@Entity
+@Table(name = "orders")
+@Getter @Setter
+public class Order {
+    @Id @GeneratedValue
+    @Column(name = "order_id")
+    private Long id;
+
+    @OneToOne
+    @JoinColumn(name = "delivery_id")
+    private Delivery delivery;
+}
+
+@Entity
+@Getter @Setter
+public class Delivery {
+  @Id @GeneratedValue
+  @Column(name = "delivery_id")
+  private Long id;
+
+  @OneToOne(mappedBy = "delivery")
+  private Order order;
+}
+```
+
+- 일대일 관계에서는 FK 를 A 에 둬도 되고, B 에 둬도 된다.
+- 어디에 두냐에 따라 장단점이 있다.
+- 주로 data access 하는 곳에 FK 를 두자.
+  - EX) delivery, order 에서 delivery 를 직접 조회하는 것 보다 항상 order 를 보면서 delivery 를 본다면 FK 를 order 에 두는 것이 맞다.
+  - FK 를 delivery 에 줘도 되고, order 에 둬도 되긴 하다.
+  - order 에 FK 를 두기로 결정했기 때문에, FK 가 있는 order 가 연관관계의 주인이 되고,
+    - ***연관관계의 주인***이 되는 `Order.delivery` 에 `@JoinColumn(name = "delivery_id")` 을 설정한다. 
+    - ***연관관계의 거울***이 되는`Delivery.order` 에 `@OneToOne(mappedBy = "delivery")` 를 설정한다.
