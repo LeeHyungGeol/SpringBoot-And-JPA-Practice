@@ -133,9 +133,9 @@ validateDuplicateMember를 할 때에 동시에 회원가입이 이루어질 때
   - 💡h2 도 java 로 돌아가기 때문에, h2 를 jvm 안에 띄울 수가 있다.(다른 db 들은?)
 - 추가로 테스트 케이스를 위한 스프링 환경과, 일반적으로 애플리케이션을 실행하는 환경은 보통 다르므로 **설정 파일을 다르게 사용하자.**
 - 이제 테스트에서 스프링을 실행하면 이 위치에 있는 설정 파일을 읽는다. (만약 이 위치에 없으면 `src/resources/application.yml` 을 읽는다.)
-- ***Spring Boot 는 datasource 설정이 없으면, 기본적으로 Memory DB 를 사용하고, driver-class도 현재 등록된 라이브러를 보고 찾아준다.***
+- ***Spring Boot 는 datasource 설정이 없으면, 기본적으로 Memory DB 를 사용하고, driver-class 도 현재 등록된 라이브러를 보고 찾아준다.***
 - 추가로 `ddl-auto` 도 `create-drop` 모드로 동작한다.
-- 따라서 데이터소스나, JPA 관련된 별도의 추가 설정을 하지 않아도 된다.
+- 따라서 datasource 나, JPA 관련된 별도의 추가 설정을 하지 않아도 된다.
 
 `test/resources/application.yml`
 
