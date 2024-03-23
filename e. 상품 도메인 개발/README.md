@@ -61,3 +61,30 @@ setter 메소드로 재고 수량을 조절하는게 아니라 addStock 메서�
 > 이것은 setter를 만들기 보다는 의미있는 변경 메서드 이름을 사용합니다. 예를 들어서 고객의 등급이 오른다면 member.levelUp() 같은 메서드가 있을 것이다. 이 메서드는 내부의 필드 값을 변경할 것이다.
 외부에 어떤 것을 공개할지 객체 생성을 목적으로 하는 것이기 때문에 외부에 한가지 방식만 제공하면 된다.
 추가로 setter를 어느정도는 허용하셔도 된다.(단 관리를 잘 하여야 한다.) 연관관계를 양방향으로 적용하시려면 필연적으로 들어가야 할 때도 있다.
+
+## 상품 리포지토리 개발
+
+```java
+@Repository
+@RequiredArgsConstructor
+public class ItemRepository {
+    private final EntityManager em;
+
+    public void save(Item item) {
+        if (item.getId() == null) {
+            em.persist(item);
+        } else {
+            em.merge(item);
+        }
+    }
+
+    public Item find(Long itemId) {
+        return em.find(Item.class, itemId);
+    }
+
+    public List<Item> findAll() {
+        return em.createQuery("select i from Item i", Item.class)
+            .getResultList();
+    }
+}
+```
