@@ -209,3 +209,23 @@ public int getTotalPrice() {
 
 ### 💡JPA는 동시성 문제를 해결하기 위해 낙관적 락과 비관적 락 2가지 방식을 제공
 - 자바 ORM표준 JPA 프로그래밍 책 16.1 트랜잭션과 락 부분
+
+## 주문 리포지토리 개발 (OrderRepository)
+
+```java
+@Repository
+@RequiredArgsConstructor
+public class OrderRepository {
+    private final EntityManager em;
+
+    public void save(Order order) {
+        em.persist(order);
+    }
+
+    public Order findOne(Long id) {
+        return em.find(Order.class, id);
+    }
+
+//    public List<Order> findAll(OrderSearch orderSearch) {}
+}
+```
