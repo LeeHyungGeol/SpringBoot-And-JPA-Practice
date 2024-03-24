@@ -39,6 +39,9 @@ public abstract class Item {
         this.stockQuantity += stockQuantity;
     }
 
+    /**
+     * stock 감
+     */
     public void removeStock(int stockQuantity) {
         int restStock = this.stockQuantity - stockQuantity;
         if (restStock < 0) {
