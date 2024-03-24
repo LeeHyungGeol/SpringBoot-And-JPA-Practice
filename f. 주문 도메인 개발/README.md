@@ -205,7 +205,8 @@ public int getTotalPrice() {
 - 개념상 Order, OrderItem을 하나로 묶고(Aggregate), Order를 통해서만 OrderItem에 접근하게 강제했습니다.
 
 > 이렇게 설계를 하면 외부에서는 Order, OrderItem 중에 Order만 알면 되기 때문에, 도메인을 좀 더 덜 복잡하게 설계할 수 있습니다. 이렇게 그룹을 대표하는 엔티티를 도메인 주도 설계(DDD)에서는 aggregate root(에그리게잇 루트) 엔티티라 합니다. 
-> 이제 OrderItem의 생명주기는 모두 Order에 달려 있습니다. 심지어 OrderItem은 리포지토리도 없습니다. 모두 Order를 통해서 관리되는 것이지요. 물론 이런 생명주기는 Cascade 기능을 통해서 관리됩니다.
+> 이제 OrderItem의 생명주기는 모두 Order에 달려 있습니다. 심지어 OrderItem은 리포지토리도 없습니다. 
+> 모두 Order를 통해서 관리되는 것이지요. 물론 이런 생명주기는 Cascade 기능을 통해서 관리됩니다.
 
 ### 💡JPA는 동시성 문제를 해결하기 위해 낙관적 락과 비관적 락 2가지 방식을 제공
 - 자바 ORM표준 JPA 프로그래밍 책 16.1 트랜잭션과 락 부분
@@ -229,3 +230,79 @@ public class OrderRepository {
 //    public List<Order> findAll(OrderSearch orderSearch) {}
 }
 ```
+
+## 주문 서비스 개발 (OrderService)
+
+```java
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class OrderService {
+    private final OrderRepository orderRepository;
+    private final MemberRepository memberRepository;
+    private final ItemRepository itemRepository;
+
+    /**
+     * 주문
+     */
+    @Transactional
+    public Long order(Long memberId, Long itemId, int count) {
+        // 엔티티 조회
+        Member member = memberRepository.find(memberId);
+        Item item = itemRepository.find(itemId);
+
+        // 배송정보 생성
+        Delivery delivery = new Delivery();
+        delivery.setAddress(member.getAddress());
+
+        // 주문상품 생성
+        OrderItem orderItem = OrderItem.createOrderItem(item, count, item.getPrice());
+
+        // 주문 생성
+        Order order = Order.createOrder(member, delivery, orderItem);
+
+        // 주문 저장
+        orderRepository.save(order);
+        return order.getId();
+    }
+
+    /**
+     * 주문 취소
+     */
+    @Transactional
+    public void cancelOrder(Long orderId) {
+        Order order = orderRepository.findOne(orderId);
+        order.cancel();
+    }
+
+    /**
+     * 검색
+     */
+//    public List<Order> findOrders(OrderSearch orderSearch) {
+//        return orderRepository.findAll(orderSearch);
+//    }
+}
+```
+
+### ⭐️정적 팩토리 패턴으로 생성매서드 같은 것을 사용할 떄 기본 생성자을 protected 로 막아둬서 무분별한 사용을 방지하자!!!
+
+```java
+import lombok.NoArgsConstructor;
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+```
+
+- 이렇게 설정해놓으면 다른 곳에서(service 등) 기본 생성자로 무분별한 객체 생성을 방지할 수 있다.
+- 항상 이렇게 제한적으로 코드 짠다면 항상 좋은 설계와 유지 보수를 할 수 있다.
+
+### ⭐️Transactional Script 와 JPA 의 Dirty Checking (변경감지)
+
+db sql 을 직접 다루 MyBatis, JDBC 템플릿 같은 경우는 데이터를 변경 할 때마다 직접 update, delete 같은 sql 문들을 직접 날려야 한다. 
+그래서, 서비스 계층에서 비즈니스 로직을 작성할 수 밖에 없다. 이를 트랜잭셔널 스크립트라고 한다.
+하지만, JPA 를 활용하면 엔티티의 데이터가 변경되면 JPA 가 알아서 dirty checking (변경감지)를 해서 db 에 sql 쿼리문들을 다 날려준다.
+이것이 JPA 의 엄청난 장점이다.
+
+### ⭐️도메인 모델 패턴과 트랜잭션 스크립트 패턴
+
+주문 서비스의 주문과 주문 취소 메서드를 보면 비즈니스 로직 대부분이 엔티티에 있다. 
+서비스 계층은 단순히 엔티티에 필요한 요청을 위임하는 역할을 한다. 이처럼 엔티티가 비즈니스 로직을 가지고 객체 지향의 특성을 적극 활용하는 것을 **도메인 모델 패턴**(http://martinfowler.com/eaaCatalog/domainModel.html)이라 한다. 
+반대로 엔티티에는 비즈니스 로직이 거의 없고 서비스 계층에서 대부분의 비즈니스 로직을 처리하는 것을 **트랜잭션 스크립트 패턴**(http://martinfowler.com/eaaCatalog/transactionScript.html)이라 한다.
