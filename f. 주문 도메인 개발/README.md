@@ -306,3 +306,85 @@ db sql 을 직접 다루 MyBatis, JDBC 템플릿 같은 경우는 데이터를 �
 주문 서비스의 주문과 주문 취소 메서드를 보면 비즈니스 로직 대부분이 엔티티에 있다. 
 서비스 계층은 단순히 엔티티에 필요한 요청을 위임하는 역할을 한다. 이처럼 엔티티가 비즈니스 로직을 가지고 객체 지향의 특성을 적극 활용하는 것을 **도메인 모델 패턴**(http://martinfowler.com/eaaCatalog/domainModel.html)이라 한다. 
 반대로 엔티티에는 비즈니스 로직이 거의 없고 서비스 계층에서 대부분의 비즈니스 로직을 처리하는 것을 **트랜잭션 스크립트 패턴**(http://martinfowler.com/eaaCatalog/transactionScript.html)이라 한다.
+
+## 주문 기능 테스트
+
+```java
+@SpringBootTest
+@Transactional
+public class OrderServiceTest {
+
+    @Autowired EntityManager em;
+    @Autowired OrderService orderService;
+    @Autowired OrderRepository orderRepository;
+
+    @Test
+    public void 상품주문() throws Exception {
+        // given
+        Member member = createMember("member");
+        Book book = createBook("JPA", 10000, 10);
+
+        int orderCount = 2;
+
+        // when
+        Long orderId = orderService.order(member.getId(), book.getId(), orderCount);
+
+        // then
+        Order findOrder = orderRepository.findOne(orderId);
+
+        assertEquals(OrderStatus.ORDER, findOrder.getStatus(), "상품 주문시 상태는 ORDER");
+        assertEquals(1, findOrder.getOrderItems().size(), "주문한 상품 종류 수가 정확해야 한다.");
+        assertEquals(10000*orderCount, findOrder.getTotalPrice(), "주문 가격은 가격*수량 이다.");
+        assertEquals(8, book.getStockQuantity(), "주문 수량 만큼 재고가 줄어야 한다.");
+    }
+
+    @Test
+    public void 주문취소() throws Exception {
+        // given
+        Member member = createMember("member");
+        Book book = createBook("시골 JPA", 10000, 10);
+        int orderCount = 2;
+
+        Long orderId = orderService.order(member.getId(), book.getId(), orderCount);
+        // when
+        orderService.cancelOrder(orderId);
+        // then
+        Order getOrder = orderRepository.findOne(orderId);
+        assertEquals(OrderStatus.CANCEL, getOrder.getStatus(), "주문 취소시 상태는 CANCEL 이다.");
+        assertEquals(10, book.getStockQuantity(), "주문이 취소된 상품은 그만큼 재고가 증가해야 한다.");
+    }
+    
+    @Test
+    public void 상품주문_재고수량초과() throws Exception {
+        // given
+        Member member = createMember("member");
+        Book book = createBook("JPA", 10000, 10);
+        int orderCount = 11;
+
+        // when
+        NotEnoughStockException notEnoughStockException = assertThrows(
+            NotEnoughStockException.class,
+            () -> orderService.order(member.getId(), book.getId(), orderCount));
+
+        // then
+        assertEquals(notEnoughStockException.getMessage(), "재고가 부족합니다.");
+    }
+
+    private Book createBook(String name, int price, int stockQuantity) {
+        Book book = new Book();
+        book.setName(name);
+        book.setPrice(price);
+        book.setStockQuantity(stockQuantity);
+        em.persist(book);
+        return book;
+    }
+
+    private Member createMember(String name) {
+        Member member = new Member();
+        member.setName(name);
+        member.setAddress(new Address("서울시", "능동로", "17길 12"));
+        em.persist(member);
+        return member;
+    }
+}
+```
