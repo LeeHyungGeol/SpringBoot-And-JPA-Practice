@@ -4,6 +4,123 @@
 
 ## 변경 감지와 병합
 
+**준영속 엔티티?**
+- **영속성 컨텍스트가 더는 관리하지 않는 엔티티를 말한다.**
+(여기서는 `itemService.saveItem(book)` 에서 수정을 시도하는 `Book` 객체다. `Book` 객체는 이미 DB에 한번 저장되어서 식별자가 존재한다. 
+이렇게 임의로 만들어낸 엔티티도 기존 식별자를 가지고 있으면 준영속 엔티티로 볼 수 있다.)
+- ***핵심은 식별자를 기준으로 영속상태가 되어서 DB에 저장된 적이 있는가로 보시면 됩니다.***
+  - 그래서 식별자를 기준으로 이미 한번 영속상태가 되어버린 엔티티가 있는데, 더이상 영속성 컨텍스트가 관리하지 않으면 모두 준영속 상태입니다. 
+  - 그게 em.detach()를 해서 직접적으로 준영속 상태가 될 수도 있고, 
+  - 지금처럼 수정을 위해 html form에 데이터를 노출한 이후에 다시 new로 재조립된 엔티티일 수 도 있습니다. 
+  - 심지어 다른 원격지 서버에 해당 엔티티를 네트워크로 전송할 수 도 있겠지요. 이 경우 원격지 서버에 도착한 엔티티는 영속성 컨텍스트에서 관리할 수 없기 때문에 준영속 상태라고 합니다. 
+    - 그런데 생각해보면 원격지 서버에서 엔티티를 복구할 때도 내부에서는 new 라는 명령어를 사용하겠지요? 이때도 준영속 상태라고 합니다.
+
+**강의 내 book 엔티티는 아래와 같은 흐름**
+수정하려는 엔티티의 키가 10이라고 했을 때,
+
+1. DB에는 아직 수정 전인 엔티티가 들어있음. 이건 영속.
+
+2. Book book = new Book(); 한 후 BookForm의 정보들로 set해줌. 이건 그냥 함수 내에서 new로 만들었을 뿐이니 JPA가 관리하고 있지 않음. 하지만 이 book의 키값인 10은 디비에 저장되어있음. 그래서 이건 준영속.
+   - (즉, 10이란 키값을 갖는 엔티티에 대해 영속 엔티티와 준영속 엔티티가 동시에 존재하는 상황.)
+
+3. 여기서 준영속 엔티티 book의 key값으로 검색하여 영속 엔티티 findItem을 가져오고 값을 덮어씌움.
+
+4. 모든 작업 이후에도 book은 여전히 준영속 엔티티이므로 더이상 사용하지 않는 것이 좋음.
+
+5. 결국 더티체킹 메서드를 직접 만들든, em.merge()를 사용하든 내부적으로는 전부 더티체킹을 사용하여 update하는 것임.(null 업데이트 문제는 제쳐두고)
+
+**준영속 엔티티를 수정하는 2가지 방법** 
+1. 변경 감지 기능 사용 
+2. 병합(`merge`) 사용
+
+### 변경 감지 기능 사용
+
+```java
+@Transactional
+public void updateItem(Long itemId, Book param) {
+    Item findItem = itemRepository.find(itemId);
+    findItem.setName(param.getName());
+    findItem.setPrice(param.getPrice());
+    findItem.setStockQuantity(param.getStockQuantity());
+}
+```
+영속성 컨텍스트에서 엔티티를 다시 조회한 후에 데이터를 수정하는 방법
+- 트랜잭션 안에서 엔티티를 다시 조회, 변경할 값 선택 트랜잭션 커밋 시점에 변경 감지(Dirty Checking)이 동작해서 데이터베이스에 UPDATE SQL 실행
+
+### 병합 사용
+병합은 준영속 상태의 엔티티를 영속 상태로 변경할 때 사용하는 기능이다. 
+```java
+@Transactional
+void update(Item itemParam) { //itemParam: 파리미터로 넘어온 준영속 상태의 엔티티
+    Item mergeItem = em.merge(itemParam);
+    // itemParam 은 그대로 준영속, mergeItem 이 영속상태이다.
+}
+```
+
+### 병합의 작동 원리
+
+![병합(em merge()) 동작 방식](https://github.com/LeeHyungGeol/Programmers_CodingTestPractice/assets/56071088/8a5147ab-4d6e-4094-afe2-73a57abb74b5)
+
+1. `merge()` 를 실행한다.
+2. 파라미터로 넘어온 준영속 엔티티의 식별자 값으로 1차 캐시에서 엔티티를 조회한다. 
+   - 2-1. 만약 1차 캐시에 엔티티가 없으면 데이터베이스에서 엔티티를 조회하고, 1차 캐시에 저장한다.
+3. 조회한 영속 엔티티(`mergeMember`)에 `member` 엔티티의 값을 채워 넣는다.(병합한다.) 
+   - (member 엔티티의 모든 값을 mergeMember에 밀어 넣는다. 이때 mergeMember 의 “회원1” 이라는 이름이 “회원명변경”으로 바뀐다.)
+4. 영속 상태인 mergeMember를 반환한다. (`Item mergeItem = em.merge(itemParam);`)
+5. 트랜잭션 커밋 시점에 변경 감지 기능이 동작해서 데이터베이스에 UPDATE SQL이 실행
+
+
+
+### 병합 사용시 주의사항 - 그냥 병합은 쓰지 말자!!!
+
+- 변경 감지 기능을 사용하면 원하는 속성만 선택해서 변경할 수 있지만, 
+- ***병합을 사용하면 모든 속성이 변경된다. 병합시 값이 없으면 `null` 로 업데이트 할 위험도 있다.(병합은 모든 필드를 교체한다.)***
+- 실무에서는 보통 업데이트 기능이 매우 제한적이다. 
+- **그런데 병합은 모든 필드를 변경해버리고, 데이터가 없으면 `null` 로 업데이트 해버린다.** 
+- 병합을 사용하면서 이 문제를 해결하려면, 변경 폼 화면에서 모든 데이터를 항상 유지해야 한다. 
+- **실무에서는 보통 변경가능한 데이터만 노출하기 때문에, 병합을 사용하는 것이 오히려 번거롭다.**
+
+### 가장 좋은 해결 방법
+**엔티티를 변경할 때는 항상 변경 감지를 사용하세요**
+- 컨트롤러에서 어설프게 엔티티를 생성하지 마세요. 
+- 트랜잭션이 있는 서비스 계층에 식별자( `id` )와 변경할 데이터를 명확하게 전달하세요.(파라미터 or dto) 
+- 트랜잭션이 있는 서비스 계층에서 영속 상태의 엔티티를 조회하고, 엔티티의 데이터를 직접 변경하세요. 
+- 트랜잭션 커밋 시점에 변경 감지가 실행됩니다.
+
+```java
+@Controller
+@RequiredArgsConstructor
+public class ItemController { 
+    private final ItemService itemService;
+    /**
+     * 상품 수정, 권장 코드 
+     */
+    @PostMapping(value = "/items/{itemId}/edit")
+    public String updateItem(@PathVariable Long itemId, @ModelAttribute("form") BookForm form) {
+        itemService.updateItem(itemId, form.getName(), form.getPrice(), form.getStockQuantity());
+        return "redirect:/items";
+    } 
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor 
+public class ItemService {
+    private final ItemRepository itemRepository;
+    /**
+     * 영속성 컨텍스트가 자동 변경 
+     */
+    @Transactional
+    public void updateItem(Long id, String name, int price, int stockQuantity) {
+        Item item = itemRepository.findOne(id);
+        item.setName(name);
+        item.setPrice(price);
+        item.setStockQuantity(stockQuantity);
+    } 
+}
+```
+
 
 ### 💡데이터베이스 커서와 페이징의 차이
 
