@@ -1,9 +1,12 @@
 package com.example.jpabook.controller;
 
 import com.example.jpabook.domain.item.Book;
+import com.example.jpabook.domain.item.Item;
 import com.example.jpabook.service.ItemService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.Banner.Mode;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -35,5 +38,12 @@ public class ItemController {
 
         itemService.save(book);
         return "redirect:/";
+    }
+
+    @GetMapping("/items")
+    public String list(Model model) {
+        List<Item> items = itemService.findItems();
+        model.addAttribute("items", items);
+        return "items/itemList";
     }
 }
